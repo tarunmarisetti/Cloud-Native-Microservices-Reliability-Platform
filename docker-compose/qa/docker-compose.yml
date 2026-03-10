@@ -1,0 +1,103 @@
+services:
+  redis:
+    image: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD-SHELL", "redis-cli ping | grep PONG" ]
+      timeout: 10s
+      retries: 10
+    extends:
+      file: common-config.yml
+      service: network-deploy-service
+
+  api-gateway:
+    image: "tarunmari/api-gateway-docker:v1"
+    container_name: "gatewayserver-ms"
+    ports:
+      - "8072:8072"
+    extends:
+      file: common-config.yml
+      service: microservice-eureka-config
+    depends_on:
+      employee-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - SPRING_APPLICATION_NAME=gatewayserver
+      - SERVER_PORT=8072
+      - SPRING_DATA_REDIS_CONNECT-TIMEOUT=2s
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_DATA_REDIS_TIMEOUT=1s
+
+  service-registry:
+    image: "tarunmari/service-registry-docker:v1"
+    container_name: "serviceregistry-ms"
+    ports:
+      - "8070:8070"
+    extends:
+      file: common-config.yml
+      service: microservice-configserver-config
+    environment:
+      - SPRING_APPLICATION_NAME=serviceregistry
+      - SERVER_PORT=8070
+
+  config-server:
+    image: "tarunmari/config-docker:v1"
+    container_name: "configserver-ms"
+    ports:
+      - "8071:8071"
+    environment:
+      - SPRING_APPLICATION_NAME=configserver
+      - SERVER_PORT=8071
+    extends:
+      file: common-config.yml
+      service: microservice-base-config
+
+  department-service:
+    image: "tarunmari/department-docker:v1"
+    container_name: "department-ms"
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_APPLICATION_NAME=department
+      - SERVER_PORT=8080
+    extends:
+      file: common-config.yml
+      service: microservice-eureka-config
+
+  employee-service:
+    image: "tarunmari/employee-docker:v1"
+    container_name: "employee-ms"
+    ports:
+      - "8081:8081"
+    depends_on:
+      department-service:
+        condition: service_healthy
+      organization-service:
+        condition: service_healthy
+    environment:
+      - SPRING_APPLICATION_NAME=employee
+      - SERVER_PORT=8081
+    extends:
+      file: common-config.yml
+      service: microservice-eureka-config
+
+
+  organization-service:
+    image: "tarunmari/organization-docker:v1"
+    container_name: "organization-ms"
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_APPLICATION_NAME=organization
+      - SERVER_PORT=8083
+    extends:
+      file: common-config.yml
+      service: microservice-eureka-config
+
+networks:
+  msDocker:
+    driver: "bridge"
